@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DOOM-Inspired Shooter</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -13,6 +13,7 @@
         <div id="menu" class="screen">
             <div class="menu-content">
                 <h1><i class="fas fa-crosshairs"></i> DOOM SHOOTER</h1>
+                
                 <button id="startButton" class="menu-button">
                     <i class="fas fa-play"></i> START GAME
                 </button>
@@ -29,19 +30,19 @@
                 <div class="controls-grid">
                     <div class="control-item">
                         <i class="fas fa-arrow-up"></i>
-                        <span>W/S or Joystick - Move Forward/Back</span>
+                        <span>W/S - Move Forward/Back</span>
                     </div>
                     <div class="control-item">
                         <i class="fas fa-arrows-alt-h"></i>
-                        <span>A/D or Joystick - Strafe</span>
+                        <span>A/D - Strafe Left/Right</span>
                     </div>
                     <div class="control-item">
                         <i class="fas fa-mouse"></i>
-                        <span>Mouse/Swipe Right Side - Look Around</span>
+                        <span>Mouse - Look Around & Shoot</span>
                     </div>
                     <div class="control-item">
                         <i class="fas fa-bullseye"></i>
-                        <span>Click/Tap Fire Button - Shoot</span>
+                        <span>Destroy all enemies in 3D</span>
                     </div>
                 </div>
                 <button id="backButton" class="menu-button">
@@ -69,16 +70,6 @@
                 </div>
             </div>
             <canvas id="gameCanvas" width="800" height="600"></canvas>
-
-            <!-- Mobile Controls -->
-            <div id="mobileControls">
-                <div class="joystick" id="joystick">
-                    <div class="joystick-knob" id="joystickKnob"></div>
-                </div>
-                <div id="fireButton">
-                    <i class="fas fa-crosshairs"></i>
-                </div>
-            </div>
         </div>
 
         <!-- Game Over Screen -->
