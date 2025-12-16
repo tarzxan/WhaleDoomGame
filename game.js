@@ -8,9 +8,9 @@ class SpriteManager {
 
     async initializeSprites() {
         const imagePaths = {
-            player: 'assets/images/player.png', // Your custom player PNG
-            enemy: 'assets/images/enemy.png', // Your custom enemy PNG
-            gun: 'assets/images/gun.png', // Hand/gun placeholder
+            player: 'assets/images/player.png',
+            enemy: 'assets/images/enemy.png',
+            gun: 'assets/images/gun.png',
             bullet: 'assets/images/bullet.png',
             powerup: 'assets/images/powerup.png',
             particle: 'assets/images/particle.png',
@@ -33,7 +33,6 @@ class SpriteManager {
             this.sprites.player = await this.loadImage(imagePaths.player);
             this.sprites.enemy = await this.loadImage(imagePaths.enemy);
             this.sprites.gun = imagePaths.gun ? await this.loadImage(imagePaths.gun) : this.createGunSprite();
-            // Use canvas fallbacks for other sprites
             this.sprites.bullet = this.createBulletSprite();
             this.sprites.powerup = this.createPowerUpSprite();
             this.sprites.particle = this.createParticleSprite();
@@ -128,13 +127,10 @@ class SpriteManager {
         canvas.height = 64;
         const ctx = canvas.getContext('2d');
         
-        // Barrel (gray)
         ctx.fillStyle = '#808080';
         ctx.fillRect(20, 20, 32, 12);
-        // Handle (brown)
         ctx.fillStyle = '#8B4513';
         ctx.fillRect(20, 32, 12, 20);
-        // Trigger guard (dark gray)
         ctx.fillStyle = '#404040';
         ctx.fillRect(20, 32, 8, 8);
         
@@ -206,10 +202,8 @@ class SpriteManager {
     }
 
     drawSprite(ctx, spriteType, x, y, rotation = 0, scale = 1, frame = 0) {
-        console.log(`Drawing sprite: ${spriteType} at (${x}, ${y})`);
         const sprite = this.sprites[spriteType];
         if (!sprite || !this.imagesLoaded) {
-            console.log(`No sprite or images not loaded for ${spriteType}`);
             return;
         }
         
@@ -279,13 +273,6 @@ class SpriteManager {
             ctx.drawImage(this.sprites.particle, -this.sprites.particle.width/2, -this.sprites.particle.height/2);
             ctx.restore();
         });
-    }
-
-    createRadialGradient(ctx, x, y, radius, innerColor, outerColor) {
-        const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
-        gradient.addColorStop(0, innerColor);
-        gradient.addColorStop(1, outerColor);
-        return gradient;
     }
 
     createMuzzleFlash(ctx, x, y, angle) {
@@ -419,9 +406,9 @@ class SoundManager {
         const data = buffer.getChannelData(0);
         for (let i = 0; i < data.length; i++) {
             const t = i / this.audioContext.sampleRate;
-            const freq1 = 523.25; // C5
-            const freq2 = 659.25; // E5
-            const freq3 = 783.99; // G5
+            const freq1 = 523.25;
+            const freq2 = 659.25;
+            const freq3 = 783.99;
             const envelope = Math.sin(t * Math.PI * 0.67);
             const note1 = Math.sin(2 * Math.PI * freq1 * t) * (t < 0.5 ? 1 : 0);
             const note2 = Math.sin(2 * Math.PI * freq2 * t) * (t > 0.3 && t < 0.8 ? 1 : 0);
@@ -443,45 +430,13 @@ class SoundManager {
             const gainNode = this.audioContext.createGain();
             source.buffer = this.sounds[soundName];
             source.playbackRate.value = pitch;
-            gainNode.gain.value = volume;
+            gainNode.gain.value = volume * this.masterVolume;
             source.connect(gainNode);
             gainNode.connect(this.masterGain);
-            source.start();
-            source.onended = () => {
-                source.disconnect();
-                gainNode.disconnect();
-            };
-        } catch (error) {
-            console.warn('Error playing sound:', error);
+            source.start(0);
+        } catch (e) {
+            console.warn('Failed to play sound:', e);
         }
-    }
-
-    setMasterVolume(volume) {
-        this.masterVolume = Math.max(0, Math.min(1, volume));
-        if (this.masterGain) {
-            this.masterGain.gain.value = this.masterVolume;
-        }
-    }
-
-    toggleSound() {
-        this.soundEnabled = !this.soundEnabled;
-        return this.soundEnabled;
-    }
-
-    playAmbientSound() {
-        if (!this.soundEnabled) return;
-        const oscillator = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        oscillator.type = 'sawtooth';
-        oscillator.frequency.value = 60;
-        gainNode.gain.value = 0.05;
-        oscillator.connect(gainNode);
-        gainNode.connect(this.masterGain);
-        oscillator.start();
-        gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0.05, this.audioContext.currentTime + 2);
-        gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 10);
-        oscillator.stop(this.audioContext.currentTime + 10);
     }
 }
 
@@ -492,378 +447,301 @@ class Game {
         this.spriteManager = new SpriteManager();
         this.soundManager = new SoundManager();
         
-        this.gameState = 'menu';
-        this.score = 0;
-        this.startTime = 0;
-        this.gameTime = 0;
-        this.enemiesKilled = 0;
-        this.waveNumber = 1;
-        
+        this.tileSize = 64;
+        this.mapWidth = 12;
+        this.mapHeight = 12;
+        this.map = [
+            [1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,1,1,0,0,0,0,1,1,0,1],
+            [1,0,1,0,0,0,0,0,0,1,0,1],
+            [1,0,0,0,0,1,1,0,0,0,0,1],
+            [1,0,0,0,0,1,1,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,1,0,0,0,0,0,0,1,0,1],
+            [1,0,1,1,0,0,0,0,1,1,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+
         this.fov = Math.PI / 3;
         this.halfFov = this.fov / 2;
         this.numRays = this.canvas.width / 2;
-        this.maxDepth = 800;
-        this.wallHeight = 100;
-        
-        this.mapWidth = 20;
-        this.mapHeight = 15;
-        this.tileSize = 32;
-        this.map = this.generateMap();
-        
+        this.maxDepth = this.mapWidth * this.tileSize;
+        this.wallHeight = 64;
+
         this.player = null;
-        this.bullets = [];
         this.enemies = [];
-        this.particles = [];
+        this.bullets = [];
         this.explosions = [];
         this.powerUps = [];
-        
+        this.particles = [];
+
         this.keys = {};
-        this.mouse = { x: 0, y: 0, pressed: false, lastX: 0 };
-        this.lastShotTime = 0;
-        this.shotCooldown = 150;
-        this.mouseSensitivity = 0.0015;
-        
-        this.powerUpSpawnChance = 0.001;
-        this.waveCooldown = 60000; // 1 minute
-        this.waveTimer = 0;
+        this.gameState = 'menu';
+        this.waveNumber = 1;
+        this.score = 0;
+        this.health = 100;
+        this.enemiesKilled = 0;
         this.waitingForNextWave = false;
-        this.enemiesPerWave = 5;
-        this.maxWaves = 7;
-        
-        this.spriteManager.initializeSprites().then(() => {
-            this.initializeEventListeners();
-            this.initializeUI();
-            this.gameLoop();
-        }).catch(error => {
-            console.error('Sprite initialization failed:', error);
-            this.initializeEventListeners();
-            this.initializeUI();
-            this.gameLoop();
-        });
+        this.waveCooldown = 5000;
+        this.waveTimer = 0;
+
+        // Mobile touch support
+        this.activeTouches = {};
+
+        this.init();
     }
 
-    generateMap() {
-        const map = [];
-        for (let y = 0; y < this.mapHeight; y++) {
-            map[y] = [];
-            for (let x = 0; x < this.mapWidth; x++) {
-                if (x === 0 || x === this.mapWidth - 1 || y === 0 || y === this.mapHeight - 1) {
-                    map[y][x] = 1;
-                } else if (x % 3 === 0 && y % 3 === 0) {
-                    map[y][x] = Math.random() < 0.7 ? 1 : 0;
-                } else if (Math.random() < 0.1) {
-                    map[y][x] = 1;
-                } else {
-                    map[y][x] = 0;
-                }
-            }
-        }
-        for (let y = 1; y < 4; y++) {
-            for (let x = 1; x < 4; x++) {
-                map[y][x] = 0;
-            }
-        }
-        return map;
+    async init() {
+        await this.spriteManager.initializeSprites();
+        this.setupEventListeners();
+        this.startGame();
+        this.gameLoop();
     }
 
-    initializeEventListeners() {
-        document.addEventListener('keydown', (e) => {
+    setupEventListeners() {
+        window.addEventListener('keydown', (e) => {
             this.keys[e.key.toLowerCase()] = true;
-            if (['w', 'a', 's', 'd', ' '].includes(e.key.toLowerCase())) {
-                e.preventDefault();
-            }
         });
-
-        document.addEventListener('keyup', (e) => {
+        window.addEventListener('keyup', (e) => {
             this.keys[e.key.toLowerCase()] = false;
         });
 
-        this.canvas.addEventListener('mousemove', (e) => {
-            if (this.gameState !== 'playing') return;
-            const rect = this.canvas.getBoundingClientRect();
-            this.mouse.x = (e.clientX - rect.left) * (this.canvas.width / rect.width);
-            this.mouse.y = (e.clientY - rect.top) * (this.canvas.height / rect.height);
-            const deltaX = this.mouse.x - this.mouse.lastX;
-            if (this.player && Math.abs(deltaX) > 0) {
-                this.player.angle += deltaX * this.mouseSensitivity;
-                this.mouse.lastX = this.mouse.x;
-            }
-        });
-
         this.canvas.addEventListener('mousedown', (e) => {
-            this.mouse.pressed = true;
-            this.handleShooting();
             if (this.gameState === 'playing') {
-                this.canvas.requestPointerLock();
+                this.shoot();
             }
         });
 
-        this.canvas.addEventListener('mouseup', () => {
-            this.mouse.pressed = false;
-        });
-
-        document.addEventListener('pointerlockchange', () => {
-            if (document.pointerLockElement === this.canvas) {
-                document.addEventListener('mousemove', this.handleMouseMove.bind(this));
-            } else {
-                document.removeEventListener('mousemove', this.handleMouseMove.bind(this));
+        this.canvas.addEventListener('pointerlockchange', () => {
+            if (!document.pointerLockElement) {
+                // Pointer lock lost - could pause or show message
             }
         });
 
-        this.canvas.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-        });
+        // Mobile touch controls
+        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+            this.canvas.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
+            this.canvas.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
+            this.canvas.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
+        }
     }
 
-    handleMouseMove(e) {
-        if (this.gameState !== 'playing' || !this.player) return;
-        this.player.angle += e.movementX * this.mouseSensitivity;
+    // Mobile touch handlers
+    handleTouchStart(e) {
+        e.preventDefault();
+        const rect = this.canvas.getBoundingClientRect();
+        for (let touch of e.changedTouches) {
+            const touchX = touch.clientX - rect.left;
+            const touchY = touch.clientY - rect.top;
+            const id = touch.identifier;
+            this.activeTouches[id] = {
+                startX: touchX,
+                startY: touchY,
+                currentX: touchX,
+                currentY: touchY,
+                isMovement: touchX < this.canvas.width / 2,
+                hasMoved: false
+            };
+        }
     }
 
-    initializeUI() {
-        document.getElementById('startButton').addEventListener('click', () => {
-            this.startGame();
-        });
-        document.getElementById('instructionsButton').addEventListener('click', () => {
-            this.showInstructions();
-        });
-        document.getElementById('backButton').addEventListener('click', () => {
-            this.showMenu();
-        });
-        document.getElementById('restartButton').addEventListener('click', () => {
-            this.startGame();
-        });
-        document.getElementById('menuButton').addEventListener('click', () => {
-            this.showMenu();
-        });
+    handleTouchMove(e) {
+        e.preventDefault();
+        const rect = this.canvas.getBoundingClientRect();
+        for (let touch of e.changedTouches) {
+            const id = touch.identifier;
+            if (this.activeTouches[id]) {
+                const touchX = touch.clientX - rect.left;
+                const touchY = touch.clientY - rect.top;
+                const control = this.activeTouches[id];
+                const dx = touchX - control.currentX;
+                control.currentX = touchX;
+                control.currentY = touchY;
+
+                const dist = Math.hypot(touchX - control.startX, touchY - control.startY);
+                if (dist > 10) {
+                    control.hasMoved = true;
+                }
+
+                if (!control.isMovement && this.player) {
+                    // Look around (rotate view)
+                    this.player.angle += dx * 0.006; // Sensitivity - adjust as needed
+                }
+            }
+        }
     }
 
-    showMenu() {
-        this.gameState = 'menu';
-        document.getElementById('menu').classList.remove('hidden');
-        document.getElementById('instructions').classList.add('hidden');
-        document.getElementById('gameScreen').classList.add('hidden');
-        document.getElementById('gameOver').classList.add('hidden');
-    }
-
-    showInstructions() {
-        this.gameState = 'instructions';
-        document.getElementById('menu').classList.add('hidden');
-        document.getElementById('instructions').classList.remove('hidden');
-        document.getElementById('gameScreen').classList.add('hidden');
-        document.getElementById('gameOver').classList.add('hidden');
+    handleTouchEnd(e) {
+        e.preventDefault();
+        for (let touch of e.changedTouches) {
+            const id = touch.identifier;
+            if (this.activeTouches[id]) {
+                if (!this.activeTouches[id].isMovement && !this.activeTouches[id].hasMoved) {
+                    // Quick tap on right side = shoot
+                    this.shoot();
+                }
+                delete this.activeTouches[id];
+            }
+        }
     }
 
     startGame() {
-        this.gameState = 'playing';
-        this.score = 0;
-        this.startTime = Date.now();
-        this.gameTime = 0;
-        this.enemiesKilled = 0;
-        this.waveNumber = 1;
-        this.waitingForNextWave = false;
-        this.waveTimer = 0;
-        this.bullets = [];
+        this.player = new Player(100, 100, 0);
         this.enemies = [];
-        this.particles = [];
+        this.bullets = [];
         this.explosions = [];
         this.powerUps = [];
-        this.player = new Player(2.5 * this.tileSize, 2.5 * this.tileSize, Math.PI / 4);
-        console.log('Player initialized at:', this.player.x, this.player.y);
-        this.spawnEnemies(this.enemiesPerWave);
-        document.getElementById('menu').classList.add('hidden');
-        document.getElementById('instructions').classList.add('hidden');
-        document.getElementById('gameScreen').classList.remove('hidden');
-        document.getElementById('gameOver').classList.add('hidden');
-        this.soundManager.playAmbientSound();
-        this.updateUI();
+        this.particles = [];
+        this.score = 0;
+        this.health = 100;
+        this.waveNumber = 1;
+        this.enemiesKilled = 0;
+        this.spawnEnemiesForWave();
+        this.gameState = 'playing';
     }
 
-    gameOver(victory = false) {
-        this.gameState = 'gameOver';
-        this.gameTime = Math.floor((Date.now() - this.startTime) / 1000);
-        document.getElementById('timeSurvived').textContent = this.gameTime;
-        document.getElementById('finalKills').textContent = this.enemiesKilled;
-        document.getElementById('finalWave').textContent = this.waveNumber;
-        const gameOverScreen = document.getElementById('gameOver');
-        const gameOverTitle = document.getElementById('gameOverTitle');
-        if (victory) {
-            gameOverTitle.innerHTML = '<i class="fas fa-trophy"></i> VICTORY!';
-            gameOverScreen.classList.add('victory');
-            this.soundManager.playSound('victory');
-        } else {
-            gameOverTitle.innerHTML = '<i class="fas fa-skull-crossbones"></i> GAME OVER';
-            gameOverScreen.classList.remove('victory');
-            this.soundManager.playSound('gameOver');
+    spawnEnemiesForWave() {
+        const enemyCount = 3 + this.waveNumber * 2;
+        for (let i = 0; i < enemyCount; i++) {
+            let x, y;
+            do {
+                x = Math.random() * (this.mapWidth * this.tileSize - 100) + 50;
+                y = Math.random() * (this.mapHeight * this.tileSize - 100) + 50;
+            } while (this.isCollidingWithWall(x, y) || this.distanceToPlayer(x, y) < 150);
+            this.enemies.push(new Enemy(x, y, this.waveNumber));
         }
-        document.getElementById('gameScreen').classList.add('hidden');
-        document.getElementById('gameOver').classList.remove('hidden');
+        document.getElementById('enemiesDisplay').textContent = this.enemies.length;
     }
 
-    handleShooting() {
+    isCollidingWithWall(x, y) {
+        const mapX = Math.floor(x / this.tileSize);
+        const mapY = Math.floor(y / this.tileSize);
+        return this.map[mapY][mapX] === 1;
+    }
+
+    distanceToPlayer(x, y) {
+        return Math.hypot(x - this.player.x, y - this.player.y);
+    }
+
+    shoot() {
         if (this.gameState !== 'playing' || !this.player) return;
-        const currentTime = Date.now();
-        if (currentTime - this.lastShotTime < this.shotCooldown) return;
-        this.lastShotTime = currentTime;
-        const angle = this.player.angle;
-        console.log('Spawning bullet at:', this.player.x, this.player.y);
-        const bullet = new Bullet(this.player.x, this.player.y, angle);
+        const bullet = new Bullet(this.player.x, this.player.y, this.player.angle);
         this.bullets.push(bullet);
-        this.soundManager.playSound('shoot', 0.5, 0.9 + Math.random() * 0.2);
-        this.createMuzzleFlash(this.player.x, this.player.y, angle);
-    }
-
-    createMuzzleFlash(x, y, angle) {
-        const flashParticles = this.spriteManager.createParticleEffect(x, y, '#ffff00', 5);
-        flashParticles.forEach(particle => {
-            particle.vx = Math.cos(angle) * 15 + (Math.random() - 0.5) * 5;
-            particle.vy = Math.sin(angle) * 15 + (Math.random() - 0.5) * 5;
-            particle.life = 0.3;
-            particle.decay = 0.1;
-        });
-        this.particles.push(...flashParticles);
-    }
-
-    spawnEnemies(count) {
-        for (let i = 0; i < count; i++) {
-            let x, y;
-            let attempts = 0;
-            do {
-                x = Math.random() * (this.mapWidth - 2) + 1;
-                y = Math.random() * (this.mapHeight - 2) + 1;
-                attempts++;
-            } while (this.map[Math.floor(y)][Math.floor(x)] === 1 && attempts < 50);
-            x = x * this.tileSize + this.tileSize / 2;
-            y = y * this.tileSize + this.tileSize / 2;
-            const enemy = new Enemy(x, y, this.waveNumber);
-            this.enemies.push(enemy);
-        }
-    }
-
-    spawnPowerUp() {
-        if (Math.random() < this.powerUpSpawnChance) {
-            let x, y;
-            let attempts = 0;
-            do {
-                x = Math.random() * (this.mapWidth - 2) + 1;
-                y = Math.random() * (this.mapHeight - 2) + 1;
-                attempts++;
-            } while (this.map[Math.floor(y)][Math.floor(x)] === 1 && attempts < 50);
-            x = x * this.tileSize + this.tileSize / 2;
-            y = y * this.tileSize + this.tileSize / 2;
-            this.powerUps.push(new PowerUp(x, y));
-        }
+        this.soundManager.playSound('shoot');
+        // Muzzle flash effect could be added here
     }
 
     update() {
         if (this.gameState !== 'playing') return;
-        if (this.player) {
-            this.player.update(this.keys, this);
+
+        this.player.update(this.keys, this);
+
+        // Touch-based movement (virtual joystick)
+        let movementTouch = null;
+        for (let id in this.activeTouches) {
+            if (this.activeTouches[id].isMovement) {
+                movementTouch = this.activeTouches[id];
+                break;
+            }
         }
+        if (movementTouch) {
+            const dx = movementTouch.currentX - movementTouch.startX;
+            const dy = movementTouch.currentY - movementTouch.startY;
+            const dist = Math.hypot(dx, dy);
+            const deadzone = 20;
+            if (dist > deadzone) {
+                let forward = -dy / dist; // Up on screen = forward
+                let strafe = dx / dist;
+                const magnitude = Math.min(1, (dist - deadzone) / 100);
+                const moveX = Math.cos(this.player.angle) * forward * this.player.speed * magnitude
+                            - Math.sin(this.player.angle) * strafe * this.player.speed * magnitude;
+                const moveY = Math.sin(this.player.angle) * forward * this.player.speed * magnitude
+                            + Math.cos(this.player.angle) * strafe * this.player.speed * magnitude;
+
+                const newX = this.player.x + moveX;
+                const newY = this.player.y + moveY;
+                if (this.player.canMoveTo(newX, this.player.y, this)) {
+                    this.player.x = newX;
+                }
+                if (this.player.canMoveTo(this.player.x, newY, this)) {
+                    this.player.y = newY;
+                }
+            }
+        }
+
+        // Update enemies
+        this.enemies.forEach(enemy => enemy.update(this.player, this));
+
+        // Update bullets
         for (let i = this.bullets.length - 1; i >= 0; i--) {
             const bullet = this.bullets[i];
             bullet.update(this);
-            if (bullet.hitWall || bullet.x < 0 || bullet.x > this.mapWidth * this.tileSize || 
-                bullet.y < 0 || bullet.y > this.mapHeight * this.tileSize) {
+            if (bullet.hitWall) {
                 this.bullets.splice(i, 1);
+                continue;
             }
-        }
-        for (let i = this.enemies.length - 1; i >= 0; i--) {
-            const enemy = this.enemies[i];
-            enemy.update(this.player, this);
-            if (this.player && this.checkCollision(enemy, this.player)) {
-                this.player.takeDamage(10);
-                this.soundManager.playSound('playerHurt', 0.7);
-                const damageParticles = this.spriteManager.createParticleEffect(
-                    this.player.x, this.player.y, '#ff0000', 8
-                );
-                this.particles.push(...damageParticles);
-                if (this.player.health <= 0) {
-                    this.gameOver(false);
-                    return;
-                }
-            }
-            for (let j = this.bullets.length - 1; j >= 0; j--) {
-                const bullet = this.bullets[j];
-                if (this.checkCollision(enemy, bullet)) {
-                    enemy.takeDamage(25);
-                    this.bullets.splice(j, 1);
-                    const hitParticles = this.spriteManager.createParticleEffect(
-                        enemy.x, enemy.y, '#ff6600', 6
-                    );
-                    this.particles.push(...hitParticles);
+
+            // Check bullet-enemy collision
+            for (let j = this.enemies.length - 1; j >= 0; j--) {
+                const enemy = this.enemies[j];
+                const dx = bullet.x - enemy.x;
+                const dy = bullet.y - enemy.y;
+                if (Math.hypot(dx, dy) < enemy.radius) {
+                    enemy.takeDamage(50);
+                    this.bullets.splice(i, 1);
+                    this.soundManager.playSound('enemyHit');
                     if (enemy.health <= 0) {
-                        this.soundManager.playSound('enemyDeath', 0.6);
+                        this.enemies.splice(j, 1);
                         this.score += 100;
                         this.enemiesKilled++;
-                        console.log('Spawning explosion at:', enemy.x, enemy.y);
+                        this.soundManager.playSound('enemyDeath');
                         this.explosions.push(new Explosion(enemy.x, enemy.y));
-                        const deathParticles = this.spriteManager.createParticleEffect(
-                            enemy.x, enemy.y, '#ff0000', 12
-                        );
-                        this.particles.push(...deathParticles);
-                        this.enemies.splice(i, 1);
-                    } else {
-                        this.soundManager.playSound('enemyHit', 0.4);
+                        document.getElementById('enemiesDisplay').textContent = this.enemies.length;
                     }
                     break;
                 }
             }
         }
+
+        // Update explosions
         for (let i = this.explosions.length - 1; i >= 0; i--) {
-            const explosion = this.explosions[i];
-            explosion.update();
-            if (explosion.finished) {
+            this.explosions[i].update();
+            if (this.explosions[i].finished) {
                 this.explosions.splice(i, 1);
             }
         }
-        this.spriteManager.updateParticles(this.particles);
-        for (let i = this.powerUps.length - 1; i >= 0; i--) {
-            const powerUp = this.powerUps[i];
-            powerUp.update();
-            if (this.player && this.checkCollision(powerUp, this.player)) {
-                this.player.heal(25);
-                this.soundManager.playSound('powerUp', 0.8);
-                this.powerUps.splice(i, 1);
-                this.score += 50;
-            }
-        }
-        if (!this.waitingForNextWave) {
-            if (this.enemies.length === 0) {
-                this.waitingForNextWave = true;
-                this.waveTimer = Date.now();
-                this.score += 200;
-                this.updateUI();
-            }
-        } else {
-            const timeElapsed = Date.now() - this.waveTimer;
-            if (timeElapsed >= this.waveCooldown && this.waveNumber < this.maxWaves) {
-                this.waveNumber++;
-                this.waitingForNextWave = false;
-                this.waveTimer = 0;
-                this.spawnEnemies(this.enemiesPerWave);
-            }
-        }
-        if (this.waveNumber > this.maxWaves) {
-            this.gameOver(true);
-        }
-        this.spawnPowerUp();
-        this.updateUI();
-    }
 
-    checkCollision(obj1, obj2) {
-        const distance = Math.sqrt(
-            Math.pow(obj1.x - obj2.x, 2) + Math.pow(obj1.y - obj2.y, 2)
-        );
-        return distance < (obj1.radius + obj2.radius);
-    }
-
-    updateUI() {
-        if (this.player) {
-            document.getElementById('healthDisplay').textContent = this.player.health;
+        // Check win condition
+        if (this.enemies.length === 0 && !this.waitingForNextWave) {
+            this.waitingForNextWave = true;
+            this.waveTimer = Date.now();
+            this.waveNumber++;
         }
+
+        if (this.waitingForNextWave && Date.now() - this.waveTimer > this.waveCooldown) {
+            this.spawnEnemiesForWave();
+            this.waitingForNextWave = false;
+        }
+
+        // Update UI
+        document.getElementById('healthDisplay').textContent = this.player.health;
         document.getElementById('scoreDisplay').textContent = this.score;
-        document.getElementById('enemiesDisplay').textContent = this.enemies.length;
+
+        if (this.player.health <= 0) {
+            this.gameOver(false);
+        }
+    }
+
+    gameOver(victory = false) {
+        this.gameState = 'gameOver';
+        document.getElementById('gameOverTitle').textContent = victory ? 'VICTORY!' : 'GAME OVER';
+        document.getElementById('timeSurvived').textContent = Math.floor((Date.now() - this.startTime) / 1000);
+        document.getElementById('finalKills').textContent = this.enemiesKilled;
+        document.getElementById('finalWave').textContent = this.waveNumber;
+        this.soundManager.playSound(victory ? 'victory' : 'gameOver');
     }
 
     castRay(startX, startY, angle) {
@@ -922,15 +800,18 @@ class Game {
     render() {
         this.ctx.fillStyle = '#0a0a0a';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
         if (this.gameState !== 'playing') return;
+
+        // Sky and floor
         this.ctx.fillStyle = '#333333';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height / 2);
         this.ctx.fillStyle = '#666666';
         this.ctx.fillRect(0, this.canvas.height / 2, this.canvas.width, this.canvas.height / 2);
-        if (!this.player) {
-            console.log('No player to render');
-            return;
-        }
+
+        if (!this.player) return;
+
+        // Raycasting walls
         const rayAngleStep = this.fov / this.numRays;
         const rayStartAngle = this.player.angle - this.halfFov;
         for (let i = 0; i < this.numRays; i++) {
@@ -938,63 +819,105 @@ class Game {
             const rayResult = this.castRay(this.player.x, this.player.y, rayAngle);
             const wallHeight = (this.canvas.height / rayResult.distance) * this.wallHeight;
             const wallTop = (this.canvas.height - wallHeight) / 2;
-            const wallBrightness = rayResult.side === 0 ? 1.0 : 0.7;
             const distanceFactor = Math.max(0.1, 1 - rayResult.distance / this.maxDepth);
-            const brightness = wallBrightness * distanceFactor;
+            const brightness = (rayResult.side === 0 ? 1.0 : 0.7) * distanceFactor;
             this.ctx.fillStyle = `rgb(${Math.floor(139 * brightness)}, ${Math.floor(69 * brightness)}, ${Math.floor(19 * brightness)})`;
             this.ctx.fillRect(i * 2, wallTop, 2, wallHeight);
         }
+
         this.render3DSprites();
-        // Draw hand/gun placeholder
+
+        // Draw gun
         if (this.spriteManager.sprites.gun && this.spriteManager.imagesLoaded) {
-            console.log('Drawing gun sprite');
-            const gunWidth = this.spriteManager.sprites.gun.width;
-            const gunHeight = this.spriteManager.sprites.gun.height;
-            const scale = 1.5; // Adjust size
+            const gun = this.spriteManager.sprites.gun;
+            const scale = 1.8;
             this.ctx.drawImage(
-                this.spriteManager.sprites.gun,
-                this.canvas.width / 2 - (gunWidth * scale) / 2,
-                this.canvas.height - gunHeight * scale,
-                gunWidth * scale,
-                gunHeight * scale
+                gun,
+                this.canvas.width / 2 - (gun.width * scale) / 2,
+                this.canvas.height - gun.height * scale + 20,
+                gun.width * scale,
+                gun.height * scale
             );
         }
+
         this.drawCrosshair();
         this.drawWaveIndicator();
         this.drawMinimap();
+
         if (this.waitingForNextWave) {
             this.drawWaveTimer();
+        }
+
+        // Draw virtual joystick (mobile only)
+        if (Object.keys(this.activeTouches).length > 0) {
+            const joystickRadius = 60;
+            this.ctx.save();
+            this.ctx.globalAlpha = 0.4;
+            for (let id in this.activeTouches) {
+                const control = this.activeTouches[id];
+                if (control.isMovement) {
+                    // Base
+                    this.ctx.beginPath();
+                    this.ctx.arc(control.startX, control.startY, joystickRadius, 0, Math.PI * 2);
+                    this.ctx.fillStyle = '#ff6b6b';
+                    this.ctx.fill();
+                    this.ctx.strokeStyle = '#ffffff';
+                    this.ctx.lineWidth = 3;
+                    this.ctx.stroke();
+
+                    // Thumb
+                    let thumbX = control.currentX;
+                    let thumbY = control.currentY;
+                    const dx = control.currentX - control.startX;
+                    const dy = control.currentY - control.startY;
+                    const dist = Math.hypot(dx, dy);
+                    if (dist > joystickRadius) {
+                        thumbX = control.startX + (dx / dist) * joystickRadius;
+                        thumbY = control.startY + (dy / dist) * joystickRadius;
+                    }
+                    this.ctx.beginPath();
+                    this.ctx.arc(thumbX, thumbY, joystickRadius / 2, 0, Math.PI * 2);
+                    this.ctx.fillStyle = '#ffffff';
+                    this.ctx.fill();
+                }
+            }
+            this.ctx.restore();
         }
     }
 
     render3DSprites() {
-        console.log('Rendering 3D sprites, player exists:', !!this.player);
         const sprites = [];
+
         this.enemies.forEach(enemy => {
             const dx = enemy.x - this.player.x;
             const dy = enemy.y - this.player.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            sprites.push({ type: 'enemy', object: enemy, distance: distance });
+            const distance = Math.hypot(dx, dy);
+            sprites.push({ type: 'enemy', object: enemy, distance });
         });
+
         this.powerUps.forEach(powerUp => {
             const dx = powerUp.x - this.player.x;
             const dy = powerUp.y - this.player.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            sprites.push({ type: 'powerup', object: powerUp, distance: distance });
+            const distance = Math.hypot(dx, dy);
+            sprites.push({ type: 'powerup', object: powerUp, distance });
         });
+
         this.bullets.forEach(bullet => {
             const dx = bullet.x - this.player.x;
             const dy = bullet.y - this.player.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            sprites.push({ type: 'bullet', object: bullet, distance: distance });
+            const distance = Math.hypot(dx, dy);
+            sprites.push({ type: 'bullet', object: bullet, distance });
         });
+
         this.explosions.forEach(explosion => {
             const dx = explosion.x - this.player.x;
             const dy = explosion.y - this.player.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            sprites.push({ type: 'explosion', object: explosion, distance: distance, frame: explosion.frame });
+            const distance = Math.hypot(dx, dy);
+            sprites.push({ type: 'explosion', object: explosion, distance, frame: explosion.frame });
         });
+
         sprites.sort((a, b) => b.distance - a.distance);
+
         sprites.forEach(sprite => {
             this.render3DSprite(sprite.object, sprite.type, sprite.distance, sprite.frame || 0);
         });
@@ -1007,79 +930,23 @@ class Game {
         let angleDiff = spriteAngle - this.player.angle;
         while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
         while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+
         if (Math.abs(angleDiff) > this.halfFov) return;
+
         const screenX = (angleDiff / this.halfFov) * (this.canvas.width / 2) + this.canvas.width / 2;
         const spriteSize = (this.canvas.height / distance) * 50;
         const spriteTop = (this.canvas.height - spriteSize) / 2;
-        const brightness = Math.max(0.1, 1 - distance / this.maxDepth);
+
+        const brightness = Math.max(0.2, 1 - distance / this.maxDepth);
         this.ctx.save();
         this.ctx.globalAlpha = brightness;
+
         let scale = spriteSize / (this.spriteManager.sprites[type]?.width || 32);
-        if (type === 'powerup') {
-            scale *= 0.5;
-        }
-        if (type === 'bullet') {
-            scale *= 0.3;
-        }
-        this.spriteManager.drawSprite(this.ctx, type, screenX, spriteTop + spriteSize/2, 0, scale, frame);
+        if (type === 'powerup') scale *= 0.5;
+        if (type === 'bullet') scale *= 0.3;
+
+        this.spriteManager.drawSprite(this.ctx, type, screenX, spriteTop + spriteSize / 2, 0, scale, frame);
         this.ctx.restore();
-    }
-
-    drawMinimap() {
-        const minimapSize = 120;
-        const minimapX = this.canvas.width - minimapSize - 10;
-        const minimapY = 10;
-        const scale = minimapSize / (this.mapWidth * this.tileSize);
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        this.ctx.fillRect(minimapX, minimapY, minimapSize, minimapSize);
-        for (let y = 0; y < this.mapHeight; y++) {
-            for (let x = 0; x < this.mapWidth; x++) {
-                if (this.map[y][x] === 1) {
-                    this.ctx.fillStyle = '#8B4513';
-                    this.ctx.fillRect(
-                        minimapX + x * this.tileSize * scale,
-                        minimapY + y * this.tileSize * scale,
-                        this.tileSize * scale,
-                        this.tileSize * scale
-                    );
-                }
-            }
-        }
-        if (this.player) {
-            this.ctx.fillStyle = '#00ff00';
-            const playerX = minimapX + this.player.x * scale;
-            const playerY = minimapY + this.player.y * scale;
-            this.ctx.fillRect(playerX - 2, playerY - 2, 4, 4);
-            this.ctx.strokeStyle = '#00ff00';
-            this.ctx.lineWidth = 1;
-            this.ctx.beginPath();
-            this.ctx.moveTo(playerX, playerY);
-            this.ctx.lineTo(
-                playerX + Math.cos(this.player.angle) * 10,
-                playerY + Math.sin(this.player.angle) * 10
-            );
-            this.ctx.stroke();
-        }
-        this.enemies.forEach(enemy => {
-            this.ctx.fillStyle = '#ff0000';
-            this.ctx.fillRect(
-                minimapX + enemy.x * scale - 1,
-                minimapY + enemy.y * scale - 1,
-                2, 2
-            );
-        });
-    }
-
-    drawHealthBar(x, y, health, maxHealth) {
-        const width = 30;
-        const height = 4;
-        const healthPercent = health / maxHealth;
-        this.ctx.fillStyle = '#333333';
-        this.ctx.fillRect(x - width/2, y, width, height);
-        const healthColor = healthPercent > 0.6 ? '#00ff00' : 
-                           healthPercent > 0.3 ? '#ffff00' : '#ff0000';
-        this.ctx.fillStyle = healthColor;
-        this.ctx.fillRect(x - width/2, y, width * healthPercent, height);
     }
 
     drawCrosshair() {
@@ -1091,29 +958,63 @@ class Game {
         this.ctx.beginPath();
         this.ctx.moveTo(centerX - size, centerY);
         this.ctx.lineTo(centerX + size, centerY);
-        this.ctx.stroke();
-        this.ctx.beginPath();
         this.ctx.moveTo(centerX, centerY - size);
         this.ctx.lineTo(centerX, centerY + size);
         this.ctx.stroke();
-        this.ctx.fillStyle = '#ff6b6b';
-        this.ctx.fillRect(centerX - 1, centerY - 1, 2, 2);
     }
 
     drawWaveIndicator() {
         this.ctx.fillStyle = '#ff6b6b';
-        this.ctx.font = '16px Courier New';
+        this.ctx.font = '20px Courier New';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText(`Wave ${this.waveNumber}`, this.canvas.width / 2, 30);
+        this.ctx.fillText(`Wave ${this.waveNumber}`, this.canvas.width / 2, 40);
     }
 
     drawWaveTimer() {
-        const timeElapsed = Date.now() - this.waveTimer;
-        const timeRemaining = Math.max(0, Math.floor((this.waveCooldown - timeElapsed) / 1000));
+        const timeRemaining = Math.max(0, Math.ceil((this.waveCooldown - (Date.now() - this.waveTimer)) / 1000));
         this.ctx.fillStyle = '#ff6b6b';
-        this.ctx.font = '16px Courier New';
+        this.ctx.font = '18px Courier New';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText(`Next Wave in ${timeRemaining}s`, this.canvas.width / 2, 50);
+        this.ctx.fillText(`Next wave in ${timeRemaining}s`, this.canvas.width / 2, 70);
+    }
+
+    drawMinimap() {
+        const size = 120;
+        const x = this.canvas.width - size - 10;
+        const y = 10;
+        const scale = size / (this.mapWidth * this.tileSize);
+
+        this.ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        this.ctx.fillRect(x, y, size, size);
+
+        for (let my = 0; my < this.mapHeight; my++) {
+            for (let mx = 0; mx < this.mapWidth; mx++) {
+                if (this.map[my][mx] === 1) {
+                    this.ctx.fillStyle = '#8B4513';
+                    this.ctx.fillRect(x + mx * this.tileSize * scale, y + my * this.tileSize * scale,
+                                     this.tileSize * scale, this.tileSize * scale);
+                }
+            }
+        }
+
+        if (this.player) {
+            this.ctx.fillStyle = '#00ff00';
+            const px = x + this.player.x * scale;
+            const py = y + this.player.y * scale;
+            this.ctx.fillRect(px - 3, py - 3, 6, 6);
+
+            this.ctx.strokeStyle = '#00ff00';
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            this.ctx.moveTo(px, py);
+            this.ctx.lineTo(px + Math.cos(this.player.angle) * 15, py + Math.sin(this.player.angle) * 15);
+            this.ctx.stroke();
+        }
+
+        this.enemies.forEach(enemy => {
+            this.ctx.fillStyle = '#ff0000';
+            this.ctx.fillRect(x + enemy.x * scale - 2, y + enemy.y * scale - 2, 4, 4);
+        });
     }
 
     gameLoop() {
@@ -1138,6 +1039,7 @@ class Player {
     update(keys, game) {
         let moveX = 0;
         let moveY = 0;
+
         if (keys['w']) {
             moveX += Math.cos(this.angle) * this.speed;
             moveY += Math.sin(this.angle) * this.speed;
@@ -1154,22 +1056,21 @@ class Player {
             moveX += Math.cos(this.angle + Math.PI/2) * this.speed;
             moveY += Math.sin(this.angle + Math.PI/2) * this.speed;
         }
+
         const newX = this.x + moveX;
         const newY = this.y + moveY;
+
         if (this.canMoveTo(newX, this.y, game)) {
             this.x = newX;
         }
         if (this.canMoveTo(this.x, newY, game)) {
             this.y = newY;
         }
-        if (keys['arrowleft']) {
-            this.angle -= this.rotationSpeed;
-        }
-        if (keys['arrowright']) {
-            this.angle += this.rotationSpeed;
-        }
+
+        if (keys['arrowleft']) this.angle -= this.rotationSpeed;
+        if (keys['arrowright']) this.angle += this.rotationSpeed;
     }
-    
+
     canMoveTo(x, y, game) {
         if (x < this.radius || x > game.mapWidth * game.tileSize - this.radius ||
             y < this.radius || y > game.mapHeight * game.tileSize - this.radius) {
@@ -1180,30 +1081,11 @@ class Player {
         if (game.map[mapY] && game.map[mapY][mapX] === 1) {
             return false;
         }
-        const corners = [
-            { x: x - this.radius, y: y - this.radius },
-            { x: x + this.radius, y: y - this.radius },
-            { x: x - this.radius, y: y + this.radius },
-            { x: x + this.radius, y: y + this.radius }
-        ];
-        for (let corner of corners) {
-            const cornerMapX = Math.floor(corner.x / game.tileSize);
-            const cornerMapY = Math.floor(corner.y / game.tileSize);
-            if (cornerMapX < 0 || cornerMapX >= game.mapWidth || 
-                cornerMapY < 0 || cornerMapY >= game.mapHeight ||
-                game.map[cornerMapY][cornerMapX] === 1) {
-                return false;
-            }
-        }
         return true;
     }
 
     takeDamage(amount) {
         this.health = Math.max(0, this.health - amount);
-    }
-
-    heal(amount) {
-        this.health = Math.min(this.maxHealth, this.health + amount);
     }
 }
 
@@ -1215,42 +1097,29 @@ class Enemy {
         this.speed = 1.0 + wave * 0.15;
         this.health = 50 + wave * 10;
         this.maxHealth = this.health;
-        this.lastDamageTime = 0;
     }
 
     update(player, game) {
         if (!player) return;
         const dx = player.x - this.x;
         const dy = player.y - this.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        if (distance > 20) {
+        const distance = Math.hypot(dx, dy);
+        if (distance > 30) {
             const moveX = (dx / distance) * this.speed;
             const moveY = (dy / distance) * this.speed;
-            if (this.canMoveTo(this.x + moveX, this.y, game)) {
-                this.x += moveX;
-            }
-            if (this.canMoveTo(this.x, this.y + moveY, game)) {
-                this.y += moveY;
-            }
+            if (this.canMoveTo(this.x + moveX, this.y, game)) this.x += moveX;
+            if (this.canMoveTo(this.x, this.y + moveY, game)) this.y += moveY;
         }
     }
-    
+
     canMoveTo(x, y, game) {
-        if (x < this.radius || x > game.mapWidth * game.tileSize - this.radius ||
-            y < this.radius || y > game.mapHeight * game.tileSize - this.radius) {
-            return false;
-        }
         const mapX = Math.floor(x / game.tileSize);
         const mapY = Math.floor(y / game.tileSize);
-        if (game.map[mapY] && game.map[mapY][mapX] === 1) {
-            return false;
-        }
-        return true;
+        return !(mapX < 0 || mapX >= game.mapWidth || mapY < 0 || mapY >= game.mapHeight || game.map[mapY][mapX] === 1);
     }
 
     takeDamage(amount) {
         this.health = Math.max(0, this.health - amount);
-        this.lastDamageTime = Date.now();
     }
 }
 
@@ -1259,7 +1128,7 @@ class Bullet {
         this.x = x;
         this.y = y;
         this.radius = 3;
-        this.speed = 8;
+        this.speed = 12;
         this.vx = Math.cos(angle) * this.speed;
         this.vy = Math.sin(angle) * this.speed;
         this.hitWall = false;
@@ -1270,8 +1139,7 @@ class Bullet {
         const newY = this.y + this.vy;
         const mapX = Math.floor(newX / game.tileSize);
         const mapY = Math.floor(newY / game.tileSize);
-        if (mapX < 0 || mapX >= game.mapWidth || mapY < 0 || mapY >= game.mapHeight ||
-            game.map[mapY][mapX] === 1) {
+        if (mapX < 0 || mapX >= game.mapWidth || mapY < 0 || mapY >= game.mapHeight || game.map[mapY][mapX] === 1) {
             this.hitWall = true;
             return;
         }
@@ -1286,8 +1154,8 @@ class Explosion {
         this.y = y;
         this.frame = 0;
         this.maxFrames = 8;
-        this.frameRate = 3;
         this.frameCounter = 0;
+        this.frameRate = 3;
         this.finished = false;
     }
 
@@ -1296,25 +1164,8 @@ class Explosion {
         if (this.frameCounter >= this.frameRate) {
             this.frame++;
             this.frameCounter = 0;
-            if (this.frame >= this.maxFrames) {
-                this.finished = true;
-            }
+            if (this.frame >= this.maxFrames) this.finished = true;
         }
-    }
-}
-
-class PowerUp {
-    constructor(x, y) {
-        this.x = x;
-        this.y = y;
-        this.radius = 12;
-        this.bobOffset = 0;
-        this.bobSpeed = 0.1;
-    }
-
-    update() {
-        this.bobOffset += this.bobSpeed;
-        this.y += Math.sin(this.bobOffset) * 0.5;
     }
 }
 
